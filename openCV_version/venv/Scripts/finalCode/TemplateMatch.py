@@ -1,8 +1,10 @@
+import cv2
+import imutils
+import numpy as np
 from ImageSplit import *
 
-
 def templateMatch(original, template):
-# returns how many pixels don't match
+#returns how many pixels don't match
 
     width = int(template.shape[1])
     height = int(template.shape[0])
@@ -10,13 +12,18 @@ def templateMatch(original, template):
     # resize image
     original = cv2.resize(original, dim, interpolation=cv2.INTER_AREA)
 
+    #cv2.imshow("Original", original)
+    #cv2.imshow("Template", template)
+
     if original.shape == template.shape:  # checks if the size and amount of channels in the images match. Optional.
         difference = cv2.subtract(original, template)  # Calculates the pixel difference between original and template images
         # subtracts black pixels as in these pictures they can be either black and white
 
         b, g, r = cv2.split(difference)  # split an image into three different intensity arrays for each color channel (b g r)
 
-        cv2.imshow("subtracted images", difference)
+        # print(cv2.countNonZero(b)) #the difference in blue channel
+
+        #cv2.imshow("subtracted images", difference)
 
         # countNonZero - counts the empty spots in the array of pixels (determines white pixels)
         # less white pixels means pictures are more likely to be equal
@@ -26,33 +33,28 @@ def templateMatch(original, template):
 
 
 def determineNumber(numberImage, isFaceCard):
-    # Finds which of the four letters the card is based on amount of pixels that don't match
+#Finds which of the four letters the card is based on amount of pixels that don't match
 
-    widthTopLeft = int(numberImage.shape[0] / 3)
-    heightTopLeft = int(numberImage.shape[1] / 3)
-    topLeftPart = numberImage[0:heightTopLeft, 0:widthTopLeft]
-
-    cv2.imshow("TOP LEFT PART", topLeftPart)
-
+    templateA = cv2.imread("../Images/Templates/A.png")
     templateK = cv2.imread("../Images/Templates/K.png")
     templateQ = cv2.imread("../Images/Templates/Q.png")
     templateJ = cv2.imread("../Images/Templates/J.png")
-
-    negativeProbabilityking = templateMatch(numberImage, templateK)
-
-    if cv2.inRange(topLeftPart, (200, 200, 200), (255, 255, 255)).any():
-        negativeProbabilityjack = templateMatch(numberImage, templateJ)
+    number = "CARD NUMBER NOT FOUND "
+    negativeProbability = 99999
+    if not isFaceCard:
+        if (templateMatch(numberImage, templateA) < negativeProbability):
+            negativeProbability  = templateMatch(numberImage, templateA)
+            number = "A"
     else:
-        negativeProbabilityjack = 40
-
-    negativeProbabilityqueen = templateMatch(numberImage, templateQ)
-
-    if (negativeProbabilityking < negativeProbabilityqueen and negativeProbabilityking < negativeProbabilityjack):
-        number = "K"
-    elif(negativeProbabilityqueen < negativeProbabilityjack):
-        number = "Q"
-    else:
-        number = "J"
+        if (templateMatch(numberImage, templateK) < negativeProbability):
+            negativeProbability = templateMatch(numberImage, templateK)
+            number = "K"
+        if (templateMatch(numberImage, templateQ) < negativeProbability):
+            negativeProbability = templateMatch(numberImage, templateQ)
+            number = "Q"
+        if (templateMatch(numberImage, templateJ) < negativeProbability):
+            negativeProbability = templateMatch(numberImage, templateJ)
+            number = "J"
 
     return number
 
@@ -61,6 +63,8 @@ def prepareImageForTemplateMatching(suitImage, numberImage):
 
     images = []
     newImages = []
+    #cv2.imshow("Suit image", suitImage)
+    #cv2.imshow("Number image", numberImage)
 
     #rotate nubmer image
     TM = cv2.getRotationMatrix2D((numberImage.shape[0] / 2, numberImage.shape[1] / 2), -90, 1)
@@ -80,6 +84,7 @@ def prepareImageForTemplateMatching(suitImage, numberImage):
 
         c = cv2.findContours(grayScale.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         c = imutils.grab_contours(c)
+        #print("find max contour")
         # find the biggest area
         c = max(c, key=cv2.contourArea)
 
@@ -92,7 +97,9 @@ def prepareImageForTemplateMatching(suitImage, numberImage):
         TM = np.float32([[1, 0, -extLeft[0]], [0, 1, -extTop[1]]])
         imgT = cv2.warpAffine(images[j], TM, ((extRight[0] - extLeft[0]), (extBot[1] - extTop[1])))
 
+        #cv2.imshow("Single card pls" + str(j), imgT)
         newImages.append(imgT)
+        #cv2.imshow("Image: " + str(j) + " " + str(i) ,imgT)
 
     #We return the bigger image first
     return findTwoBiggestImages(newImages)
